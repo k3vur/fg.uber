@@ -49,16 +49,42 @@ uber.prototype.raid = function() {
 uber.prototype.crawl = function(sheetDir, parser) {
 	console.log("raiding " + parser.url + " for " + sheetDir + "...");
 	this.mkdirIfNotExists(sheetDir);
+	var self = this;
 	request(parser.url, function(reqErrors, response, body) {
 		if (response.statusCode != 200) {
 			console.error("could not access " + parser.url);
 			return;
 		}
 		jsdom.env(body, function(domErrors, window) {
-			var result = parser.parse(jQuery, window.document);
-			console.log(result);
+			var files = parser.parse(jQuery, window.document);
+			for (var index in files) {
+				var fileURL = files[index];
+				if (!self.haveFile(fileURL, sheetDir)) {
+					self.download(fileURL, sheetDir);
+				}
+			}
 		});
 	});
+}
+
+
+uber.prototype.haveFile = function(fileURL, sheetDir) {
+	try {
+		fs.lstatSync(this.fileURLToLocalPath(fileURL, localDir));
+		return true;
+	} catch (e) {
+		return false;
+	}
+}
+
+
+uber.prototype.fileURLToLocalPath = function(fileURL, localDir) {
+	return path.join(localDir, path.basename(fileURL));
+}
+
+
+uber.prototype.download = function(fileURL, sheetDir) {
+	console.log("downloading " + fileURL + "to " + this.fileURLToLocalPath(fileURL, sheetDir));
 }
 
 
