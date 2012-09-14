@@ -15,11 +15,19 @@ var request = require('request');
 var jsdom = require('jsdom');
 
 
+// Make string more useful
 String.prototype.last = function() {
 	return this.charAt(this.length - 1)
 }
 
 
+/**
+ * uber contains four properties:
+ * * dlDir is the base directory where things are downloaded to
+ * * raidList is the object of subdir / parser pairs
+ * * scriptDir is the path where this script resides in
+ * * parserDir is the directory that contains the parsers
+ */
 uber = function(config) {
 	this.dlDir = path.resolve(config.downloadDir);
 	this.raidList = config.raidList;
@@ -28,6 +36,9 @@ uber = function(config) {
 }
 
 
+/**
+ * Creates a directory if it doesn't exist yet, including sub directories
+ */
 uber.prototype.mkdirIfNotExists = function(dir) {
 	if (!fs.existsSync(path)) {
 		console.info("creating directory " + dir);
@@ -36,6 +47,9 @@ uber.prototype.mkdirIfNotExists = function(dir) {
 }
 
 
+/**
+ * This is where the magic happens
+ */
 uber.prototype.raid = function() {
 	this.mkdirIfNotExists(this.dlDir);
 	for (var key in this.raidList) {
@@ -46,6 +60,9 @@ uber.prototype.raid = function() {
 }
 
 
+/**
+ * uses the parser to find and download files to given directory
+ */
 uber.prototype.crawl = function(sheetDir, parser) {
 	console.log("raiding " + parser.url + " for " + sheetDir + "...");
 	this.mkdirIfNotExists(sheetDir);
@@ -68,6 +85,9 @@ uber.prototype.crawl = function(sheetDir, parser) {
 }
 
 
+/*
+ * checks, if the file behind fileURL (can include http url) is present in sheetDir
+ */
 uber.prototype.haveFile = function(fileURL, sheetDir) {
 	try {
 		fs.lstatSync(this.fileURLToLocalPath(fileURL, localDir));
@@ -78,13 +98,29 @@ uber.prototype.haveFile = function(fileURL, sheetDir) {
 }
 
 
+/**
+ * converts a fileURL to the local filesystem equivalent residing in localDir
+ */
 uber.prototype.fileURLToLocalPath = function(fileURL, localDir) {
 	return path.join(localDir, path.basename(fileURL));
 }
 
 
+/**
+ * download fileURL to given directory
+ */
 uber.prototype.download = function(fileURL, sheetDir) {
-	console.log("downloading " + fileURL + "to " + this.fileURLToLocalPath(fileURL, sheetDir));
+	var localFilePath = this.fileURLToLocalPath(fileURL, sheetDir);
+	console.log("downloading " + fileURL + " to " + localFilePath);
+	var fileStream = fs.createWriteStream(localFilePath, {mode: 0644});
+	fileStream.on('close', function() {
+		console.log("finished downloading " + path.basename(localFilePath));
+	});
+	try {
+		request.get(fileURL).pipe(fileStream);
+	} catch (e) {
+		console.error("Could not download " + fileURL + " (" + e + ")");
+	}
 }
 
 
