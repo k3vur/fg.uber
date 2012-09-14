@@ -5,6 +5,8 @@
 	"description": "The University of Basel Exercise Raider keeps track of new exercise and lecture sheets",
 	"dependencies": {
 		"jquery": "1.7.3",
-		"mkdirp": "0.3.4"
+		"mkdirp": "0.3.4",
+		"request": "2.11.1",
+		"jsdom": "0.2.15"
 	}
 }

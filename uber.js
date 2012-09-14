@@ -6,41 +6,62 @@
  * Author: Kevin Urban
  */
 
-fs = require('fs');
-mkdirp = require('mkdirp');
-path = require('path');
+
+var fs = require('fs');
+var mkdirp = require('mkdirp');
+var path = require('path');
+var jQuery = require('jquery');
+var request = require('request');
+var jsdom = require('jsdom');
+
 
 String.prototype.last = function() {
 	return this.charAt(this.length - 1)
 }
 
+
 uber = function(config) {
 	this.dlDir = path.resolve(config.downloadDir);
-	this.crawlList = config.crawlList;
+	this.raidList = config.raidList;
+	this.scriptDir = __dirname;
+	this.parserDir = path.join(this.scriptDir, "parsers");
 }
 
-uber.prototype.mkdirIfNotExists = function(path) {
-	console.log(path);
+
+uber.prototype.mkdirIfNotExists = function(dir) {
 	if (!fs.existsSync(path)) {
-		mkdirp.sync(path, 0755);
+		console.info("creating directory " + dir);
+		mkdirp.sync(dir, 0755);
 	}
 }
 
-uber.prototype.crawl = function(crawlList) {
-	for (var key in crawlList) {
-		var val = crawlList[key];
-		this.process(key, val);
-	}
-}
 
-uber.prototype.process = function(dir, script) {
-	path = path.join(this.dlDir + dir);
-	this.mkdirIfNotExists(path);
-}
-
-uber.prototype.run = function() {
+uber.prototype.raid = function() {
 	this.mkdirIfNotExists(this.dlDir);
-	this.crawl(this.crawlList);
+	for (var key in this.raidList) {
+		var parser = require(path.join(this.parserDir, this.raidList[key]));
+		var sheetDir = path.join(this.dlDir, key);
+		this.crawl(sheetDir, parser);
+	}
 }
 
-new uber(require("./config.json")).run();
+
+uber.prototype.crawl = function(sheetDir, parser) {
+	console.log("raiding " + parser.url + " for " + sheetDir + "...");
+	this.mkdirIfNotExists(sheetDir);
+	request(parser.url, function(reqErrors, response, body) {
+		if (response.statusCode != 200) {
+			console.error("could not access " + parser.url);
+			return;
+		}
+		jsdom.env(body, function(domErrors, window) {
+			var result = parser.parse(jQuery, window.document);
+			console.log(result);
+		});
+	});
+}
+
+
+app = new uber(require('./config.json'));
+console.log(app);
+app.raid();

@@ -1,6 +1,6 @@
 {
 	"downloadDir": "/Users/kevin/Desktop/testdl",
-	"crawlList": {
-		"KI/Uebung": "ki-uebungen-fs12"
+	"raidList": {
+		"KI/Uebung": "grundlagen-der-programmierung-hs12"
 	}
 }
