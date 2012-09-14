@@ -1,0 +1,10 @@
+{
+	"name": "uber",
+	"version": "0.0.1",
+	"author": "Kevin Urban <theonlyulti@gmail.com>",
+	"description": "The University of Basel Exercise Raider keeps track of new exercise and lecture sheets",
+	"dependencies": {
+		"jquery": "1.7.3",
+		"mkdirp": "0.3.4"
+	}
+}
