@@ -40,7 +40,7 @@ uber = function(config) {
  * Creates a directory if it doesn't exist yet, including sub directories
  */
 uber.prototype.mkdirIfNotExists = function(dir) {
-	if (!fs.existsSync(path)) {
+	if (!fs.existsSync(dir)) {
 		console.info("creating directory " + dir);
 		mkdirp.sync(dir, 0755);
 	}
@@ -76,25 +76,12 @@ uber.prototype.crawl = function(sheetDir, parser) {
 			var files = parser.parse(jQuery, window.document);
 			for (var index in files) {
 				var fileURL = files[index];
-				if (!self.haveFile(fileURL, sheetDir)) {
+				if (!fs.existsSync(self.fileURLToLocalPath(fileURL, sheetDir))) {
 					self.download(fileURL, sheetDir);
 				}
 			}
 		});
 	});
-}
-
-
-/*
- * checks, if the file behind fileURL (can include http url) is present in sheetDir
- */
-uber.prototype.haveFile = function(fileURL, sheetDir) {
-	try {
-		fs.lstatSync(this.fileURLToLocalPath(fileURL, localDir));
-		return true;
-	} catch (e) {
-		return false;
-	}
 }
 
 
@@ -112,10 +99,12 @@ uber.prototype.fileURLToLocalPath = function(fileURL, localDir) {
 uber.prototype.download = function(fileURL, sheetDir) {
 	var localFilePath = this.fileURLToLocalPath(fileURL, sheetDir);
 	console.log("downloading " + fileURL + " to " + localFilePath);
+
 	var fileStream = fs.createWriteStream(localFilePath, {mode: 0644});
 	fileStream.on('close', function() {
 		console.log("finished downloading " + path.basename(localFilePath));
 	});
+
 	try {
 		request.get(fileURL).pipe(fileStream);
 	} catch (e) {
@@ -124,6 +113,5 @@ uber.prototype.download = function(fileURL, sheetDir) {
 }
 
 
-app = new uber(require('./config.json'));
-console.log(app);
-app.raid();
+var config = require('./config.json');
+new uber(config).raid();
