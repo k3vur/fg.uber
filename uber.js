@@ -52,37 +52,72 @@ uber.prototype.mkdirIfNotExists = function(dir) {
 /**
  * This is where the magic happens
  */
-uber.prototype.raid = function() {
+uber.prototype.raid = function(callback) {
 	this.mkdirIfNotExists(this.dlDir);
+	var crawling = {};
+	var addedAll = false;
+	var allFiles = [];
 	for (var key in this.raidList) {
 		var parser = require(Path.join(this.parserDir, this.raidList[key]));
 		var sheetDir = Path.join(this.dlDir, key);
-		this.crawl(sheetDir, parser);
+		crawling[sheetDir] = true;
+		this.crawl(sheetDir, parser, function(files) {
+			delete crawling[sheetDir];
+			console.log("finished raiding " + sheetDir);
+			allFiles = allFiles.concat(files);
+			if (addedAll && callback &&
+			    Object.keys(crawling).length === 0) {
+				callback(allFiles);
+			}
+		});
 	}
+	addedAll = true;
 };
 
 
 /**
  * uses the parser to find and download files to given directory
  */
-uber.prototype.crawl = function(sheetDir, parser) {
+uber.prototype.crawl = function(sheetDir, parser, callback) {
 	console.log("raiding " + parser.url + " for " + sheetDir + "...");
 	this.mkdirIfNotExists(sheetDir);
 	var self = this;
+
+	var domParsingCallback = function(domErrors, window) {
+		var downloading = {};
+		var addedAll = false;
+		var files = parser.parse(jQuery, window.document);
+		var callbackResult = [];
+		for (var index in files) {
+			var fileURL = files[index];
+			if (FS.existsSync(self.fileURLToLocalPath(fileURL, sheetDir))) {
+				continue;
+			}
+
+			downloading[fileURL] = true;
+			self.download(fileURL, sheetDir, function(localFile) {
+				callbackResult.push({
+					url: fileURL,
+					localFile: localFile
+				});
+				delete downloading[fileURL];
+				console.log("finished downloading " + localFile);
+
+				if (callback && addedAll &&
+				    Object.keys(downloading).length === 0) {
+					callback(callbackResult);
+				}
+			});
+		}
+		addedAll = true;
+	};
+
 	Request(parser.url, function(reqErrors, response, body) {
 		if (response.statusCode != 200) {
 			console.error("could not access " + parser.url);
 			return;
 		}
-		JSDom.env(body, function(domErrors, window) {
-			var files = parser.parse(jQuery, window.document);
-			for (var index in files) {
-				var fileURL = files[index];
-				if (!FS.existsSync(self.fileURLToLocalPath(fileURL, sheetDir))) {
-					self.download(fileURL, sheetDir);
-				}
-			}
-		});
+		JSDom.env(body, domParsingCallback);
 	});
 };
 
@@ -98,17 +133,20 @@ uber.prototype.fileURLToLocalPath = function(fileURL, localDir) {
 /**
  * download fileURL to given directory
  */
-uber.prototype.download = function(fileURL, sheetDir) {
+uber.prototype.download = function(fileURL, sheetDir, callback) {
 	var localFilePath = this.fileURLToLocalPath(fileURL, sheetDir);
 	console.log("downloading " + fileURL + " to " + localFilePath);
 
 	var fileStream = FS.createWriteStream(localFilePath, {mode: 0644});
 	fileStream.on('close', function() {
-		console.log("finished downloading " + Path.basename(localFilePath));
+		if (callback) {
+			callback(localFilePath);
+		}
 	});
 
 	try {
 		Request.get(fileURL).pipe(fileStream);
+		this.downloading[localFilePath] = true;
 	} catch (e) {
 		console.error("Could not download " + fileURL + " (" + e + ")");
 	}
@@ -162,7 +200,9 @@ RSSGenerator.prototype.generate = function(rssConfig) {
 
 
 var config = require('./config.json');
-//new uber(config).raid();
-var gen = new RSSGenerator();
-gen.addItem('/Users/kevin/Dropbox/Uni/Semester 7/Distributed/Skript/', '00-CS341-HS12-Organisation.pdf', 'http://informatik.unibas.ch/fileadmin/Lectures/HS2012/CS341/slides/00-CS341-HS12-Organisation.pdf');
-console.log(gen.generate(config.rss));
+new uber(config).raid(function(files) {
+	console.log(files);
+});
+//var gen = new RSSGenerator();
+//gen.addItem('/Users/kevin/Dropbox/Uni/Semester 7/Distributed/Skript/', '00-CS341-HS12-Organisation.pdf', 'http://informatik.unibas.ch/fileadmin/Lectures/HS2012/CS341/slides/00-CS341-HS12-Organisation.pdf');
+//console.log(gen.generate(config.rss));
