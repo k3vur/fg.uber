@@ -17,10 +17,10 @@ var RSS = require('rss');
 var FeedParser = require('feedparser');
 
 
-// Make string more useful
-String.prototype.last = function() {
-	return this.charAt(this.length - 1);
-};
+// check for empty objects
+function isEmpty(obj) {
+	return (Object.keys(obj).length === 0);
+}
 
 
 /**
@@ -65,8 +65,7 @@ uber.prototype.raid = function(callback) {
 			delete crawling[sheetDir];
 			console.log("finished raiding " + sheetDir);
 			allFiles = allFiles.concat(files);
-			if (addedAll && callback &&
-			    Object.keys(crawling).length === 0) {
+			if (addedAll && callback && isEmpty(crawling)) {
 				callback(allFiles);
 			}
 		});
@@ -103,8 +102,7 @@ uber.prototype.crawl = function(sheetDir, parser, callback) {
 				delete downloading[fileURL];
 				console.log("finished downloading " + localFile);
 
-				if (callback && addedAll &&
-				    Object.keys(downloading).length === 0) {
+				if (callback && addedAll && isEmpty(downloading)) {
 					callback(callbackResult);
 				}
 			});
@@ -200,9 +198,17 @@ RSSGenerator.prototype.generate = function(rssConfig) {
 
 
 var config = require('./config.json');
+var gen = new RSSGenerator();
 new uber(config).raid(function(files) {
-	console.log(files);
+	for (var index in files) {
+		var item = files[index];
+		var containingDir = Path.dirname(item.localFile);
+		var fileName = Path.basename(item.localFile);
+		var url = item.url;
+		gen.addItem(containingDir, fileName, url);
+	}
+
+	FS.writeFile(config.rss.path, gen.generate(config.rss), function(errors) {
+		console.log("wrote RSS feed to " + config.rss.path);
+	});
 });
-//var gen = new RSSGenerator();
-//gen.addItem('/Users/kevin/Dropbox/Uni/Semester 7/Distributed/Skript/', '00-CS341-HS12-Organisation.pdf', 'http://informatik.unibas.ch/fileadmin/Lectures/HS2012/CS341/slides/00-CS341-HS12-Organisation.pdf');
-//console.log(gen.generate(config.rss));
