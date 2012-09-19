@@ -7,18 +7,20 @@
  */
 
 
-var fs = require('fs');
-var mkdirp = require('mkdirp');
-var path = require('path');
+var FS = require('fs');
+var MkdirP = require('mkdirp');
+var Path = require('path');
 var jQuery = require('jquery');
-var request = require('request');
-var jsdom = require('jsdom');
+var Request = require('request');
+var JSDom = require('jsdom');
+var RSS = require('rss');
+var FeedParser = require('feedparser');
 
 
 // Make string more useful
 String.prototype.last = function() {
-	return this.charAt(this.length - 1)
-}
+	return this.charAt(this.length - 1);
+};
 
 
 /**
@@ -29,22 +31,22 @@ String.prototype.last = function() {
  * * parserDir is the directory that contains the parsers
  */
 uber = function(config) {
-	this.dlDir = path.resolve(config.downloadDir);
+	this.dlDir = Path.resolve(config.downloadDir);
 	this.raidList = config.raidList;
 	this.scriptDir = __dirname;
-	this.parserDir = path.join(this.scriptDir, "parsers");
-}
+	this.parserDir = Path.join(this.scriptDir, "parsers");
+};
 
 
 /**
  * Creates a directory if it doesn't exist yet, including sub directories
  */
 uber.prototype.mkdirIfNotExists = function(dir) {
-	if (!fs.existsSync(dir)) {
+	if (!FS.existsSync(dir)) {
 		console.info("creating directory " + dir);
-		mkdirp.sync(dir, 0755);
+		MkdirP.sync(dir, 0755);
 	}
-}
+};
 
 
 /**
@@ -53,11 +55,11 @@ uber.prototype.mkdirIfNotExists = function(dir) {
 uber.prototype.raid = function() {
 	this.mkdirIfNotExists(this.dlDir);
 	for (var key in this.raidList) {
-		var parser = require(path.join(this.parserDir, this.raidList[key]));
-		var sheetDir = path.join(this.dlDir, key);
+		var parser = require(Path.join(this.parserDir, this.raidList[key]));
+		var sheetDir = Path.join(this.dlDir, key);
 		this.crawl(sheetDir, parser);
 	}
-}
+};
 
 
 /**
@@ -67,30 +69,30 @@ uber.prototype.crawl = function(sheetDir, parser) {
 	console.log("raiding " + parser.url + " for " + sheetDir + "...");
 	this.mkdirIfNotExists(sheetDir);
 	var self = this;
-	request(parser.url, function(reqErrors, response, body) {
+	Request(parser.url, function(reqErrors, response, body) {
 		if (response.statusCode != 200) {
 			console.error("could not access " + parser.url);
 			return;
 		}
-		jsdom.env(body, function(domErrors, window) {
+		JSDom.env(body, function(domErrors, window) {
 			var files = parser.parse(jQuery, window.document);
 			for (var index in files) {
 				var fileURL = files[index];
-				if (!fs.existsSync(self.fileURLToLocalPath(fileURL, sheetDir))) {
+				if (!FS.existsSync(self.fileURLToLocalPath(fileURL, sheetDir))) {
 					self.download(fileURL, sheetDir);
 				}
 			}
 		});
 	});
-}
+};
 
 
 /**
  * converts a fileURL to the local filesystem equivalent residing in localDir
  */
 uber.prototype.fileURLToLocalPath = function(fileURL, localDir) {
-	return path.join(localDir, path.basename(fileURL));
-}
+	return Path.join(localDir, Path.basename(fileURL));
+};
 
 
 /**
@@ -100,18 +102,67 @@ uber.prototype.download = function(fileURL, sheetDir) {
 	var localFilePath = this.fileURLToLocalPath(fileURL, sheetDir);
 	console.log("downloading " + fileURL + " to " + localFilePath);
 
-	var fileStream = fs.createWriteStream(localFilePath, {mode: 0644});
+	var fileStream = FS.createWriteStream(localFilePath, {mode: 0644});
 	fileStream.on('close', function() {
-		console.log("finished downloading " + path.basename(localFilePath));
+		console.log("finished downloading " + Path.basename(localFilePath));
 	});
 
 	try {
-		request.get(fileURL).pipe(fileStream);
+		Request.get(fileURL).pipe(fileStream);
 	} catch (e) {
 		console.error("Could not download " + fileURL + " (" + e + ")");
 	}
-}
+};
+
+
+RSSGenerator = function() {
+	this.items = [];
+};
+
+
+RSSGenerator.prototype.parseExisting = function() {
+	if (!FS.existsSync(this.rssFilePath)) {
+		return null;
+	}
+
+	var parser = new FeedParser();
+	parser.parseFile(this.rssFilePath);
+	// TODO add existing items to this.items
+};
+
+
+RSSGenerator.prototype.addItem = function(containingDir, fileName, url, date) {
+	this.items.push({
+		containingDir: containingDir,
+		fileName: fileName,
+		url: url,
+		date: (date ? date : new Date())
+	});
+};
+
+
+RSSGenerator.prototype.generate = function(rssConfig) {
+	var rss = new RSS({
+		title: rssConfig.title ? rssConfig.title : "fg.Uber",
+		author: rssConfig.author ? rssConfig.author : "fg.Uber",
+		icon: rssConfig.icon ? rssConfig.icon : null
+	});
+	for (var index in this.items) {
+		var item = this.items[index];
+		rss.item({
+			title: item.fileName,
+			description: (item.fileName + " has been downloaded to " + item.containingDir + " from " + item.url),
+			url: "file://" + Path.join(item.containingDir, item.fileName),
+			date: item.date
+		});
+	}
+
+	return rss.xml();
+};
 
 
 var config = require('./config.json');
-new uber(config).raid();
+//new uber(config).raid();
+var gen = new RSSGenerator();
+gen.addItem('/Users/kevin/Dropbox/Uni/Semester 7/Distributed/Skript/', '00-CS341-HS12-Organisation.pdf', 'http://informatik.unibas.ch/fileadmin/Lectures/HS2012/CS341/slides/00-CS341-HS12-Organisation.pdf');
+console.log(gen.generate(config.rss));
