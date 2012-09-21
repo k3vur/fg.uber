@@ -144,7 +144,6 @@ uber.prototype.download = function(fileURL, sheetDir, callback) {
 
 	try {
 		Request.get(fileURL).pipe(fileStream);
-		this.downloading[localFilePath] = true;
 	} catch (e) {
 		console.error("Could not download " + fileURL + " (" + e + ")");
 	}
